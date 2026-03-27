@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Serverless email sender for Fonds Māte QR block",
   "dependencies": {
-    "nodemailer": "^6.9.13"
+    "nodemailer": "^6.9.13",
+    "sharp": "^0.34.5"
   }
 }
-

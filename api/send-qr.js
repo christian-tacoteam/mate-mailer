@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const sharp = require('sharp');
 
 const transporter = nodemailer.createTransport({
     host: process.env.MAILGUN_SMTP_HOST,
@@ -10,14 +11,94 @@ const transporter = nodemailer.createTransport({
     },
 });
 
+// Build the white card as a PNG using sharp
+async function buildCardPng(base64Data, message) {
+    const cardW = 680;
+    const padding = 48;
+    const qrSize = 440;
+    const fontSize = 32;
+    const lineHeight = 44;
+    const radius = 32;
+
+    // Word-wrap message text into lines
+    const words = (message || 'Noskenē un palīdzi!').split(' ');
+    const maxCharsPerLine = 36;
+    const lines = [];
+    let current = '';
+    for (const word of words) {
+        if ((current + ' ' + word).trim().length > maxCharsPerLine) {
+            if (current) lines.push(current.trim());
+            current = word;
+        } else {
+            current = (current + ' ' + word).trim();
+        }
+    }
+    if (current) lines.push(current.trim());
+
+    const textBlockH = lines.length * lineHeight + 16;
+    const cardH = padding + textBlockH + 24 + qrSize + padding;
+
+    // Build text lines as SVG tspan elements
+    const tspans = lines.map((line, i) =>
+        `<tspan x="${cardW / 2}" dy="${i === 0 ? 0 : lineHeight}">${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</tspan>`
+    ).join('');
+
+    // White rounded card SVG background + text
+    const svgCard = Buffer.from(`
+    <svg width="${cardW}" height="${cardH}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${cardW}" height="${cardH}" rx="${radius}" ry="${radius}" fill="#ffffff" />
+      <text
+        x="${cardW / 2}"
+        y="${padding + fontSize}"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="${fontSize}"
+        font-weight="600"
+        fill="#555555"
+        text-anchor="middle"
+      >${tspans}</text>
+    </svg>`);
+
+    const qrBuf = Buffer.from(base64Data, 'base64');
+
+    // Composite: white card SVG + QR image centered below text
+    const card = await sharp(svgCard)
+        .composite([{
+            input: qrBuf,
+            top: padding + textBlockH + 24,
+            left: Math.round((cardW - qrSize) / 2),
+            blend: 'over'
+        }])
+        .png()
+        .toBuffer();
+
+    return { card, cardW, cardH };
+}
+
+
 module.exports = async function handler(req, res) {
-    // Allow requests from your Shopify store
     res.setHeader('Access-Control-Allow-Origin', 'https://ziedo.fondsmate.lv');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
+    }
+
+    // GET /api/send-qr?img=<base64>&msg=<text> → returns the full white card PNG
+    if (req.method === 'GET') {
+        const img = req.query && req.query.img;
+        const msg = req.query && req.query.msg ? decodeURIComponent(req.query.msg) : '';
+        if (!img) return res.status(400).send('Missing img');
+        try {
+            const base64Data = decodeURIComponent(img);
+            const { card } = await buildCardPng(base64Data, msg);
+            res.setHeader('Content-Type', 'image/png');
+            res.setHeader('Content-Disposition', 'attachment; filename="qr-kods.png"');
+            return res.status(200).send(card);
+        } catch (e) {
+            console.error('Card build error:', e);
+            return res.status(500).send('Failed to build image');
+        }
     }
 
     if (req.method !== 'POST') {
@@ -38,6 +119,14 @@ module.exports = async function handler(req, res) {
     try {
         // Strip project title of anything in parentheses e.g. "(123 / 500)"
         const cleanTitle = projectTitle.replace(/\s*\(.*?\)\s*/g, '').trim();
+
+        // Build a direct-download URL for the QR PNG via this same function
+        const apiBase = process.env.VERCEL_URL
+            ? `https://${process.env.VERCEL_URL}`
+            : process.env.API_BASE_URL || '';
+        const downloadUrl = base64Data
+            ? `${apiBase}/api/send-qr?img=${encodeURIComponent(base64Data)}&msg=${encodeURIComponent(message || '')}`
+            : null;
 
         await transporter.sendMail({
             from: process.env.MAILGUN_FROM,
@@ -106,10 +195,21 @@ module.exports = async function handler(req, res) {
               </tr>
               ` : ''}
 
-              <!-- Button -->
+              <!-- Buttons -->
               <tr>
                 <td class="content-padding" style="padding:0 40px 20px 40px;" align="center">
-                  <a href="${trackedUrl}" style="display:inline-block;padding:14px 32px;background:#f15b46;color:#ffffff;border-radius:30px;text-decoration:none;font-weight:700;font-size:15px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Doties uz projektu</a>
+                  <table role="presentation" border="0" cellspacing="0" cellpadding="0">
+                    <tr>
+                      <td style="padding-right:8px;">
+                        <a href="${trackedUrl}" style="display:inline-block;padding:14px 24px;background:#f15b46;color:#ffffff;border-radius:30px;text-decoration:none;font-weight:700;font-size:15px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Doties uz projektu</a>
+                      </td>
+                      ${downloadUrl ? `
+                      <td style="padding-left:8px;">
+                        <a href="${downloadUrl}" style="display:inline-block;padding:14px 24px;background:#ffffff;color:#101817;border-radius:30px;text-decoration:none;font-weight:700;font-size:15px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;border:2px solid #101817;">Lejupielādēt</a>
+                      </td>
+                      ` : ''}
+                    </tr>
+                  </table>
                 </td>
               </tr>
 
