@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "functions": {
+    "api/send-qr.js": {
+      "memory": 256,
+      "maxDuration": 10
+    }
+  }
+}
+
