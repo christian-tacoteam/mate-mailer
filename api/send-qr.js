@@ -91,14 +91,6 @@ module.exports = async function handler(req, res) {
     try {
         const cleanTitle = projectTitle.replace(/\s*\(.*?\)\s*/g, '').trim();
 
-        const apiBase = process.env.VERCEL_URL
-            ? `https://${process.env.VERCEL_URL}`
-            : process.env.API_BASE_URL || '';
-
-        const downloadUrl = apiBase
-            ? `${apiBase}/api/send-qr?url=${encodeURIComponent(trackedUrl)}`
-            : null;
-
         // Generate a clean server-side QR PNG for inline display in email body
         const inlineQrBuffer = await buildEmailQrPng(trackedUrl);
 
@@ -110,7 +102,6 @@ module.exports = async function handler(req, res) {
                 cleanTitle,
                 trackedUrl,
                 message: safeMessageValue,
-                downloadUrl,
             }),
             attachments: [
                 {

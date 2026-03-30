@@ -7,11 +7,10 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
-function buildQrEmailHtml({ cleanTitle, trackedUrl, message, downloadUrl }) {
+function buildQrEmailHtml({ cleanTitle, trackedUrl, message }) {
     const safeTitle = escapeHtml(cleanTitle);
     const safeTrackedUrl = escapeHtml(trackedUrl);
     const safeMessage = escapeHtml(message) || 'Nosken\u0113 un pal\u012bdzi!';
-    const safeDownloadUrl = downloadUrl ? escapeHtml(downloadUrl) : null;
 
     return `<!DOCTYPE html>
 <html lang="lv">
@@ -72,11 +71,6 @@ function buildQrEmailHtml({ cleanTitle, trackedUrl, message, downloadUrl }) {
                             <td style="padding-right:8px;text-align:center;" align="center">
                               <a href="${safeTrackedUrl}" style="display:inline-block;padding:14px 24px;background:#f15b46;color:#ffffff;border-radius:30px;text-decoration:none;font-weight:700;font-size:15px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Doties uz projektu</a>
                             </td>
-                            ${safeDownloadUrl ? `
-                            <td style="padding-left:8px;text-align:center;" align="center">
-                              <a href="${safeDownloadUrl}" style="display:inline-block;padding:14px 24px;background:#ffffff;color:#101817;border-radius:30px;text-decoration:none;font-weight:700;font-size:15px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;border:2px solid #101817;">Lejupielādēt</a>
-                            </td>
-                            ` : ''}
                           </tr>
                         </table>
                       </td>
