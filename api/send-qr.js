@@ -1,6 +1,7 @@
 const nodemailer = require('nodemailer');
 const sharp = require('sharp');
 const QRCode = require('qrcode');
+const { PDFDocument } = require('pdf-lib');
 const { buildQrEmailHtml } = require('./templates/qr-email-html');
 
 const transporter = nodemailer.createTransport({
@@ -40,6 +41,24 @@ async function buildEmailQrPng(trackedUrl) {
         .resize(500, 500, { fit: 'contain', background: '#ffffff' })
         .png()
         .toBuffer();
+}
+
+async function buildAttachmentPdf(imageBase64) {
+    const imageBytes = Buffer.from(imageBase64, 'base64');
+    const pdfDoc = await PDFDocument.create();
+    const pngImage = await pdfDoc.embedPng(imageBytes);
+    const { width, height } = pngImage.scale(1);
+    const page = pdfDoc.addPage([width, height]);
+
+    page.drawImage(pngImage, {
+        x: 0,
+        y: 0,
+        width,
+        height,
+    });
+
+    const pdfBytes = await pdfDoc.save();
+    return Buffer.from(pdfBytes);
 }
 
 module.exports = async function handler(req, res) {
@@ -93,6 +112,7 @@ module.exports = async function handler(req, res) {
 
         // Generate a clean server-side QR PNG for inline display in email body
         const inlineQrBuffer = await buildEmailQrPng(trackedUrl);
+        const downloadPdfBuffer = await buildAttachmentPdf(downloadCardBase64);
 
         await transporter.sendMail({
             from: process.env.MAILGUN_FROM,
@@ -112,10 +132,10 @@ module.exports = async function handler(req, res) {
                     cid: 'qrcode',
                 },
                 {
-                    // Downloadable attachment — browser-rendered high-res card with text
-                    filename: 'qr-kods.png',
-                    content: downloadCardBase64,
-                    encoding: 'base64',
+                    // Downloadable attachment — browser-rendered high-res card wrapped into a PDF
+                    filename: 'qr-kods.pdf',
+                    content: downloadPdfBuffer,
+                    contentType: 'application/pdf',
                 },
             ],
         });
