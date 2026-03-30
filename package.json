@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Serverless email sender for Fonds Māte QR block",
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.68",
     "nodemailer": "^6.9.13",
     "qrcode": "^1.5.4",
     "sharp": "^0.34.5"

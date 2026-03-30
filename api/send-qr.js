@@ -1,6 +1,7 @@
 const nodemailer = require('nodemailer');
 const sharp = require('sharp');
 const QRCode = require('qrcode');
+const { createCanvas } = require('@napi-rs/canvas');
 const { buildQrEmailHtml } = require('./templates/qr-email-html');
 
 const transporter = nodemailer.createTransport({
@@ -15,94 +16,72 @@ const transporter = nodemailer.createTransport({
 
 const DOWNLOAD_SIZE = 2048;
 
-function escapeSvg(value) {
-    return String(value || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+// Wrap text into lines that fit within maxWidth pixels at the given font size.
+function wrapText(ctx, text, maxWidth) {
+    const words = text.split(/\s+/).filter(Boolean);
+    const lines = [];
+    let current = '';
+    for (const word of words) {
+        const candidate = current ? current + ' ' + word : word;
+        if (ctx.measureText(candidate).width > maxWidth && current) {
+            lines.push(current);
+            current = word;
+        } else {
+            current = candidate;
+        }
+    }
+    if (current) lines.push(current);
+    return lines;
 }
 
-// Build the downloadable square card as a 2048x2048 PNG.
+// Build the downloadable square card as a 2048x2048 PNG using canvas for text.
 async function buildCardPng(base64Data, message) {
     const cardW = DOWNLOAD_SIZE;
     const cardH = DOWNLOAD_SIZE;
     const padding = 120;
-    const qrSize = 1280;
+    const qrSize = 1400;
+    const fontSize = 72;
+    const lineHeight = 96;
+    const textTop = 160;
 
     const normalizedMessage = (message || 'Noskenē un palīdzi!').trim() || 'Noskenē un palīdzi!';
 
-    const words = normalizedMessage.split(/\s+/).filter(Boolean);
-    const maxCharsPerLine = 22;
-    const lines = [];
-    let current = '';
+    // --- Draw text onto a canvas then export as PNG ---
+    const textCanvas = createCanvas(cardW, cardH);
+    const ctx = textCanvas.getContext('2d');
 
-    for (const word of words) {
-        const next = (current + ' ' + word).trim();
-        if (next.length > maxCharsPerLine && current) {
-            lines.push(current);
-            current = word;
-        } else {
-            current = next;
-        }
-    }
-    if (current) lines.push(current);
+    // White background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, cardW, cardH);
 
-    const visibleLines = (lines.length ? lines : [normalizedMessage]).slice(0, 3);
-    const lineHeight = 108;
-    const fontSize = 88;
-    const textBlockTop = 150;
-    const textAreaWidth = cardW - (padding * 2);
+    // Text
+    ctx.fillStyle = '#555555';
+    ctx.font = `600 ${fontSize}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
 
-    const tspans = visibleLines.map((line, i) =>
-        `<tspan x="${textAreaWidth / 2}" dy="${i === 0 ? 0 : lineHeight}">${escapeSvg(line)}</tspan>`
-    ).join('');
+    const maxTextWidth = cardW - padding * 2;
+    const lines = wrapText(ctx, normalizedMessage, maxTextWidth).slice(0, 3);
 
-    const textSvg = Buffer.from(`
-    <svg width="${textAreaWidth}" height="420" xmlns="http://www.w3.org/2000/svg">
-      <text
-        x="${textAreaWidth / 2}"
-        y="90"
-        font-family="DejaVu Sans, Noto Sans, Arial, sans-serif"
-        font-size="${fontSize}"
-        font-weight="600"
-        text-anchor="middle"
-        fill="#555555"
-      >${tspans}</text>
-    </svg>`);
+    lines.forEach((line, i) => {
+        ctx.fillText(line, cardW / 2, textTop + i * lineHeight);
+    });
 
-    const baseCard = await sharp({
-        create: {
-            width: cardW,
-            height: cardH,
-            channels: 4,
-            background: { r: 255, g: 255, b: 255, alpha: 1 },
-        },
-    }).png().toBuffer();
+    const baseCardBuf = textCanvas.toBuffer('image/png');
 
-    const textOverlay = await sharp(textSvg).png().toBuffer();
-
+    // --- Scale QR to fill bottom portion ---
     const qrBuf = await sharp(Buffer.from(base64Data, 'base64'))
         .resize(qrSize, qrSize, { fit: 'contain', background: '#ffffff' })
         .png()
         .toBuffer();
 
-    const card = await sharp(baseCard)
-        .composite([
-            {
-                input: textOverlay,
-                top: textBlockTop,
-                left: padding,
-                blend: 'over',
-            },
-            {
-                input: qrBuf,
-                top: cardH - padding - qrSize,
-                left: Math.round((cardW - qrSize) / 2),
-                blend: 'over',
-            },
-        ])
+    const card = await sharp(baseCardBuf)
+        .composite([{
+            input: qrBuf,
+            top: cardH - padding - qrSize,
+            left: Math.round((cardW - qrSize) / 2),
+            blend: 'over',
+        }])
         .png()
         .toBuffer();
 
