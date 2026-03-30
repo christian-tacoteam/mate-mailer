@@ -30,11 +30,48 @@ async function buildCardPng(base64Data, message) {
     const cardH = DOWNLOAD_SIZE;
     const padding = 120;
     const qrSize = 1280;
-    const textBlockTop = 200;
 
     const normalizedMessage = (message || 'Noskenē un palīdzi!').trim() || 'Noskenē un palīdzi!';
 
-    // Create white base card
+    const words = normalizedMessage.split(/\s+/).filter(Boolean);
+    const maxCharsPerLine = 22;
+    const lines = [];
+    let current = '';
+
+    for (const word of words) {
+        const next = (current + ' ' + word).trim();
+        if (next.length > maxCharsPerLine && current) {
+            lines.push(current);
+            current = word;
+        } else {
+            current = next;
+        }
+    }
+    if (current) lines.push(current);
+
+    const visibleLines = (lines.length ? lines : [normalizedMessage]).slice(0, 3);
+    const lineHeight = 108;
+    const fontSize = 88;
+    const textBlockTop = 150;
+    const textAreaWidth = cardW - (padding * 2);
+
+    const tspans = visibleLines.map((line, i) =>
+        `<tspan x="${textAreaWidth / 2}" dy="${i === 0 ? 0 : lineHeight}">${escapeSvg(line)}</tspan>`
+    ).join('');
+
+    const textSvg = Buffer.from(`
+    <svg width="${textAreaWidth}" height="420" xmlns="http://www.w3.org/2000/svg">
+      <text
+        x="${textAreaWidth / 2}"
+        y="90"
+        font-family="DejaVu Sans, Noto Sans, Arial, sans-serif"
+        font-size="${fontSize}"
+        font-weight="600"
+        text-anchor="middle"
+        fill="#555555"
+      >${tspans}</text>
+    </svg>`);
+
     const baseCard = await sharp({
         create: {
             width: cardW,
@@ -42,29 +79,9 @@ async function buildCardPng(base64Data, message) {
             channels: 4,
             background: { r: 255, g: 255, b: 255, alpha: 1 },
         },
-    })
-        .png()
-        .toBuffer();
+    }).png().toBuffer();
 
-    // Use SVG with simple text element for better UTF-8 support in sharp
-    const maxTextWidth = cardW - (padding * 2);
-    const textSvg = Buffer.from(`
-    <svg width="${maxTextWidth}" height="300" xmlns="http://www.w3.org/2000/svg">
-      <text x="50%" y="50%" 
-            font-family="Arial, sans-serif"
-            font-size="140"
-            font-weight="600"
-            text-anchor="middle"
-            dominant-baseline="middle"
-            fill="#555555"
-            word-spacing="9999px">
-        ${escapeSvg(normalizedMessage)}
-      </text>
-    </svg>`);
-
-    const textOverlay = await sharp(textSvg)
-        .png()
-        .toBuffer();
+    const textOverlay = await sharp(textSvg).png().toBuffer();
 
     const qrBuf = await sharp(Buffer.from(base64Data, 'base64'))
         .resize(qrSize, qrSize, { fit: 'contain', background: '#ffffff' })
