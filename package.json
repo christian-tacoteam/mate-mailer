@@ -4,6 +4,7 @@
   "description": "Serverless email sender for Fonds Māte QR block",
   "dependencies": {
     "nodemailer": "^6.9.13",
+    "qrcode": "^1.5.4",
     "sharp": "^0.34.5"
   }
 }
