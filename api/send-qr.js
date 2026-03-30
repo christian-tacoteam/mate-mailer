@@ -27,6 +27,21 @@ async function buildQrPng(trackedUrl) {
         .toBuffer();
 }
 
+// Clean 500px QR-only PNG for inline cid:qrcode in email body.
+async function buildEmailQrPng(trackedUrl) {
+    const qrBuf = await QRCode.toBuffer(trackedUrl, {
+        type: 'png',
+        width: 500,
+        margin: 2,
+        errorCorrectionLevel: 'M',
+        color: { dark: '#101817', light: '#ffffff' },
+    });
+    return sharp(qrBuf)
+        .resize(500, 500, { fit: 'contain', background: '#ffffff' })
+        .png()
+        .toBuffer();
+}
+
 module.exports = async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', 'https://ziedo.fondsmate.lv');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -63,13 +78,10 @@ module.exports = async function handler(req, res) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // qrImageBase64  — browser-rendered email preview card (text + QR, ~500px), shown inline.
-    // cardImageBase64 — browser-rendered high-res download card (text + QR, ~900px), sent as attachment.
-    // Both are built by browser canvas so text renders correctly regardless of server fonts.
-    const emailCardBase64 = qrImageBase64.replace(/^data:image\/\w+;base64,/, '');
-    const downloadCardBase64 = cardImageBase64
-        ? cardImageBase64.replace(/^data:image\/\w+;base64,/, '')
-        : emailCardBase64;
+    // qrImageBase64  — browser-rendered card (text + QR). Used as download attachment fallback.
+    // cardImageBase64 — browser-rendered high-res download card, preferred for attachment.
+    // For the inline email QR we generate a clean server-side PNG so it always renders correctly.
+    const downloadCardBase64 = (cardImageBase64 || qrImageBase64).replace(/^data:image\/\w+;base64,/, '');
 
     try {
         const cleanTitle = projectTitle.replace(/\s*\(.*?\)\s*/g, '').trim();
@@ -81,6 +93,9 @@ module.exports = async function handler(req, res) {
         const downloadUrl = apiBase
             ? `${apiBase}/api/send-qr?url=${encodeURIComponent(trackedUrl)}`
             : null;
+
+        // Generate a clean server-side QR PNG for inline display in email body
+        const inlineQrBuffer = await buildEmailQrPng(trackedUrl);
 
         await transporter.sendMail({
             from: process.env.MAILGUN_FROM,
@@ -94,14 +109,14 @@ module.exports = async function handler(req, res) {
             }),
             attachments: [
                 {
-                    // Shown inline in email body via cid:qrcode (email preview card)
+                    // Shown inline in email body via cid:qrcode — server-generated, always clean
                     filename: 'qrcode.png',
-                    content: emailCardBase64,
+                    content: inlineQrBuffer,
                     encoding: 'base64',
                     cid: 'qrcode',
                 },
                 {
-                    // Downloadable attachment — high-res card, works in any email client
+                    // Downloadable attachment — browser-rendered high-res card with text
                     filename: 'qr-kods.png',
                     content: downloadCardBase64,
                     encoding: 'base64',

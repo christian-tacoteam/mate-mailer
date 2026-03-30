@@ -53,9 +53,9 @@ function buildQrEmailHtml({ cleanTitle, trackedUrl, message, downloadUrl }) {
                 <td style="padding:0 40px 20px 40px;text-align:center;" align="center">
                   <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="100%">
                     <tr>
-                      <td align="center" style="background:#ffffff;border-radius:16px;padding:32px 24px;border:1px solid #e8e0d5;text-align:center;">
-                        <p style="text-align:center;color:#555;font-size:17px;font-weight:600;margin:0 0 24px;line-height:1.4;">${safeMessage}</p>
-                        <img src="cid:qrcode" alt="QR kods" width="220" height="220" style="display:block;margin:0 auto;border:0;">
+                      <td align="center" style="background:#ffffff;border-radius:16px;padding:24px;border:1px solid #e8e0d5;text-align:center;">
+                        <p style="text-align:center;color:#333333;font-size:18px;font-weight:700;margin:0 0 20px;line-height:1.5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">${safeMessage}</p>
+                        <img src="cid:qrcode" alt="QR kods" width="260" height="260" style="display:block;margin:0 auto;border:0;max-width:100%;height:auto;">
                       </td>
                     </tr>
                   </table>
