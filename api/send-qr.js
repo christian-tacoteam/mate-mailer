@@ -15,64 +15,87 @@ const transporter = nodemailer.createTransport({
 
 const DOWNLOAD_SIZE = 2048;
 
+function escapeSvg(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // Build the downloadable square card as a 2048x2048 PNG.
 async function buildCardPng(base64Data, message) {
     const cardW = DOWNLOAD_SIZE;
     const cardH = DOWNLOAD_SIZE;
     const padding = 120;
     const qrSize = 1280;
-    const fontSize = 92;
-    const lineHeight = 112;
-    const radius = 96;
+    const textBlockTop = 140;
+    const textBlockHeight = 500;
+    const textAreaWidth = cardW - (padding * 2);
 
-    const words = (message || 'Noskenē un palīdzi!').split(/\s+/).filter(Boolean);
-    const maxCharsPerLine = 24;
-    const wrappedLines = [];
-    let current = '';
+    const normalizedMessage = (message || 'Noskenē un palīdzi!').trim() || 'Noskenē un palīdzi!';
 
-    for (const word of words) {
-        if ((current + ' ' + word).trim().length > maxCharsPerLine) {
-            if (current) wrappedLines.push(current.trim());
-            current = word;
-        } else {
-            current = (current + ' ' + word).trim();
-        }
-    }
-    if (current) wrappedLines.push(current.trim());
+    const baseCard = await sharp({
+        create: {
+            width: cardW,
+            height: cardH,
+            channels: 4,
+            background: { r: 255, g: 255, b: 255, alpha: 1 },
+        },
+    })
+        .png()
+        .toBuffer();
 
-    const lines = wrappedLines.length ? wrappedLines.slice(0, 3) : ['Noskenē un palīdzi!'];
-    const textY = 250;
-
-    const tspans = lines.map((line, i) =>
-        `<tspan x="${cardW / 2}" dy="${i === 0 ? 0 : lineHeight}">${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</tspan>`
-    ).join('');
-
-    const svgCard = Buffer.from(`
-    <svg width="${cardW}" height="${cardH}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="${cardW}" height="${cardH}" rx="${radius}" ry="${radius}" fill="#ffffff" />
-      <text
-        x="${cardW / 2}"
-        y="${textY}"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="${fontSize}"
-        font-weight="600"
-        fill="#555555"
-        text-anchor="middle"
-      >${tspans}</text>
+    // Pango text rendering handles UTF-8 glyphs more reliably than SVG text in this environment.
+    const textSvg = Buffer.from(`
+    <svg width="${textAreaWidth}" height="${textBlockHeight}" xmlns="http://www.w3.org/2000/svg">
+      <foreignObject width="100%" height="100%">
+        <div xmlns="http://www.w3.org/1999/xhtml"
+             style="
+               width:${textAreaWidth}px;
+               height:${textBlockHeight}px;
+               display:flex;
+               align-items:flex-start;
+               justify-content:center;
+               text-align:center;
+               font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans',Arial,sans-serif;
+               font-size:92px;
+               line-height:1.2;
+               font-weight:600;
+               color:#555555;
+               word-break:break-word;
+               overflow:hidden;
+             ">
+          ${escapeSvg(normalizedMessage)}
+        </div>
+      </foreignObject>
     </svg>`);
+
+    const textOverlay = await sharp(textSvg)
+        .png()
+        .toBuffer();
 
     const qrBuf = await sharp(Buffer.from(base64Data, 'base64'))
         .resize(qrSize, qrSize, { fit: 'contain', background: '#ffffff' })
         .png()
         .toBuffer();
 
-    const card = await sharp(svgCard)
-        .composite([{
-            input: qrBuf,
-            top: cardH - padding - qrSize,
-            left: Math.round((cardW - qrSize) / 2),
-            blend: 'over',
-        }])
+    const card = await sharp(baseCard)
+        .composite([
+            {
+                input: textOverlay,
+                top: textBlockTop,
+                left: padding,
+                blend: 'over',
+            },
+            {
+                input: qrBuf,
+                top: cardH - padding - qrSize,
+                left: Math.round((cardW - qrSize) / 2),
+                blend: 'over',
+            },
+        ])
         .png()
         .toBuffer();
 
