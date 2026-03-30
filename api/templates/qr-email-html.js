@@ -64,13 +64,13 @@ function buildQrEmailHtml({ cleanTitle, trackedUrl, message, downloadUrl }) {
 
               <tr>
                 <td style="padding:0 40px 20px 40px;text-align:center;" align="center">
-                  <table role="presentation" border="0" cellspacing="0" cellpadding="0">
+                  <table role="presentation" border="0" cellspacing="0" cellpadding="0" align="center">
                     <tr>
-                      <td style="padding-right:8px;">
+                      <td style="padding-right:8px;text-align:center;" align="center">
                         <a href="${safeTrackedUrl}" style="display:inline-block;padding:14px 24px;background:#f15b46;color:#ffffff;border-radius:30px;text-decoration:none;font-weight:700;font-size:15px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">Doties uz projektu</a>
                       </td>
                       ${safeDownloadUrl ? `
-                      <td style="padding-left:8px;">
+                      <td style="padding-left:8px;text-align:center;" align="center">
                         <a href="${safeDownloadUrl}" style="display:inline-block;padding:14px 24px;background:#ffffff;color:#101817;border-radius:30px;text-decoration:none;font-weight:700;font-size:15px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;border:2px solid #101817;">Lejupielādēt</a>
                       </td>
                       ` : ''}

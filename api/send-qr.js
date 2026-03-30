@@ -30,12 +30,11 @@ async function buildCardPng(base64Data, message) {
     const cardH = DOWNLOAD_SIZE;
     const padding = 120;
     const qrSize = 1280;
-    const textBlockTop = 140;
-    const textBlockHeight = 500;
-    const textAreaWidth = cardW - (padding * 2);
+    const textBlockTop = 200;
 
     const normalizedMessage = (message || 'Noskenē un palīdzi!').trim() || 'Noskenē un palīdzi!';
 
+    // Create white base card
     const baseCard = await sharp({
         create: {
             width: cardW,
@@ -47,29 +46,20 @@ async function buildCardPng(base64Data, message) {
         .png()
         .toBuffer();
 
-    // Pango text rendering handles UTF-8 glyphs more reliably than SVG text in this environment.
+    // Use SVG with simple text element for better UTF-8 support in sharp
+    const maxTextWidth = cardW - (padding * 2);
     const textSvg = Buffer.from(`
-    <svg width="${textAreaWidth}" height="${textBlockHeight}" xmlns="http://www.w3.org/2000/svg">
-      <foreignObject width="100%" height="100%">
-        <div xmlns="http://www.w3.org/1999/xhtml"
-             style="
-               width:${textAreaWidth}px;
-               height:${textBlockHeight}px;
-               display:flex;
-               align-items:flex-start;
-               justify-content:center;
-               text-align:center;
-               font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans',Arial,sans-serif;
-               font-size:92px;
-               line-height:1.2;
-               font-weight:600;
-               color:#555555;
-               word-break:break-word;
-               overflow:hidden;
-             ">
-          ${escapeSvg(normalizedMessage)}
-        </div>
-      </foreignObject>
+    <svg width="${maxTextWidth}" height="300" xmlns="http://www.w3.org/2000/svg">
+      <text x="50%" y="50%" 
+            font-family="Arial, sans-serif"
+            font-size="140"
+            font-weight="600"
+            text-anchor="middle"
+            dominant-baseline="middle"
+            fill="#555555"
+            word-spacing="9999px">
+        ${escapeSvg(normalizedMessage)}
+      </text>
     </svg>`);
 
     const textOverlay = await sharp(textSvg)
