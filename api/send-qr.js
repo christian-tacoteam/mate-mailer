@@ -74,6 +74,11 @@ module.exports = async function handler(req, res) {
 
     const { email, projectTitle, message, trackedUrl, qrImageBase64, cardImageBase64 } = req.body;
 
+    console.log('POST body keys:', Object.keys(req.body));
+    console.log('message value:', JSON.stringify(message));
+
+    const safeMessageValue = (typeof message === 'string' && message.trim()) ? message.trim() : 'Nosken\u0113 un pal\u012bdzi!';
+
     if (!email || !projectTitle || !trackedUrl) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
@@ -104,7 +109,7 @@ module.exports = async function handler(req, res) {
             html: buildQrEmailHtml({
                 cleanTitle,
                 trackedUrl,
-                message,
+                message: safeMessageValue,
                 downloadUrl,
             }),
             attachments: [

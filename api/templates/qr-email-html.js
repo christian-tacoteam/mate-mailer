@@ -10,7 +10,7 @@ function escapeHtml(value) {
 function buildQrEmailHtml({ cleanTitle, trackedUrl, message, downloadUrl }) {
     const safeTitle = escapeHtml(cleanTitle);
     const safeTrackedUrl = escapeHtml(trackedUrl);
-    const safeMessage = escapeHtml(message || 'Noskenē un palīdzi!');
+    const safeMessage = escapeHtml(message) || 'Nosken\u0113 un pal\u012bdzi!';
     const safeDownloadUrl = downloadUrl ? escapeHtml(downloadUrl) : null;
 
     return `<!DOCTYPE html>
